@@ -8,9 +8,12 @@ ENV PYTHONUNBUFFERED=1
 # Set work directory
 WORKDIR /app
 
+# Install system dependencies (fixes pkg_resources issue in Ubuntu)
+RUN apt-get update && apt-get install -y python3-setuptools && rm -rf /var/lib/apt/lists/*
+
 # Copy and install Python dependencies
 COPY requirements.txt /app/
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+RUN pip install --no-cache-dir --upgrade pip wheel
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code

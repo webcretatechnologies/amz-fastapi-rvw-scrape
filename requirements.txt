@@ -7,3 +7,4 @@ pydantic-settings==2.4.0
 python-dotenv==1.0.1
 slowapi==0.1.9
 playwright==1.62.0
+playwright-stealth==1.0.6

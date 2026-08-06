@@ -5,6 +5,7 @@ import logging
 from html import unescape
 
 from playwright.async_api import async_playwright
+from playwright_stealth import stealth_async
 from bs4 import BeautifulSoup
 
 from config import get_settings
@@ -341,26 +342,9 @@ class AmazonReviewScraper:
                 },
             )
 
-            # Remove navigator.webdriver flag to avoid detection
-            await context.add_init_script("""
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                });
-                window.chrome = { runtime: {} };
-                const originalQuery = window.navigator.permissions.query;
-                window.navigator.permissions.query = (parameters) =>
-                    parameters.name === 'notifications'
-                        ? Promise.resolve({ state: Notification.permission })
-                        : originalQuery(parameters);
-                Object.defineProperty(navigator, 'plugins', {
-                    get: () => [1, 2, 3, 4, 5]
-                });
-                Object.defineProperty(navigator, 'languages', {
-                    get: () => ['en-IN', 'en-GB', 'en-US', 'en']
-                });
-            """)
-
             page = await context.new_page()
+            # Apply advanced stealth to evade headless detection
+            await stealth_async(page)
 
             try:
                 logger.info(f"Navigating to review page for ASIN {asin}...")
@@ -390,12 +374,19 @@ class AmazonReviewScraper:
                         "Reviews not found after waiting. Checking page state..."
                     )
                     final_url = page.url
+                    page_title = await page.title()
+                    page_content = await page.content()
+                    
                     if "signin" in final_url:
                         logger.error("Still on sign-in page after login attempt.")
+                    elif "Robot Check" in page_title or "captcha" in final_url.lower():
+                        logger.error("🚨 Amazon triggered a Captcha/Anti-Bot check! The datacenter IP is blocked.")
                     else:
-                        logger.error(
-                            f"Reviews not found on page. URL: {final_url}"
-                        )
+                        logger.error(f"Reviews not found on page. URL: {final_url} | Title: {page_title}")
+                        # Print a snippet of the HTML body to understand what Amazon served
+                        snippet = page_content[:500].replace('\n', ' ')
+                        logger.debug(f"HTML Snippet: {snippet}")
+                        
                     await browser.close()
                     return []
 
